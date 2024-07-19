@@ -1,10 +1,7 @@
-from hoshino import aiorequests
 from time import time
 from json import dumps, loads
 from random import choices
 from . import pcrdapi
-
-old_post = aiorequests.post
 
 _headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0",
@@ -25,35 +22,48 @@ def _getTs():
 def _dumps(x):
     return dumps(x, ensure_ascii=False).replace(' ', '')
 
-async def post(url, data=None, json=None, **kwargs):
-    if url != 'https://api.pcrdfans.com/x/v1/search':
-        return await old_post(url, data, json, **kwargs)
-   
-    if data is not None:
-        if isinstance(data, bytes):
-            json = loads(data.decode('utf8'))
-        elif isinstance(data, str):
-            json = loads(data)
+def patch(module):
+    old_post = module.post
+    async def post(url, data=None, json=None, **kwargs):
+        if url != 'https://api.pcrdfans.com/x/v1/search':
+            return await old_post(url, data, json, **kwargs)
     
-    assert json is not None
-    
-    data = {
-        "def": json['def'],
-        "language": json.get('language', 0),
-        "nonce": _getNonce(),
-        "page": json['page'],
-        "region": json['region'],
-        "sort": json['sort'],
-        "ts": _getTs()
-    }
-    data['_sign'] = pcrdapi.sign(_dumps(data), data['nonce'])
-    kwargs['headers'] = _headers
-    return await old_post(url, json=None, data=_dumps(data).encode('utf8'), **kwargs)
-
-aiorequests.post = post
+        if data is not None:
+            if isinstance(data, bytes):
+                json = loads(data.decode('utf8'))
+            elif isinstance(data, str):
+                json = loads(data)
+        
+        assert json is not None
+        
+        data = {
+            "def": json['def'],
+            "language": json.get('language', 0),
+            "nonce": _getNonce(),
+            "page": json['page'],
+            "region": json['region'],
+            "sort": json['sort'],
+            "ts": _getTs()
+        }
+        data['_sign'] = pcrdapi.sign(_dumps(data), data['nonce'])
+        kwargs['headers'] = _headers
+        return await old_post(url, json=None, data=_dumps(data).encode('utf8'), **kwargs)
+    module.post = post
 
 try:
     from hoshino.modules.priconne.arena import arena
     arena.__get_auth_key = lambda: ''
+except:
+    pass
+
+try:
+    from hoshino import aiorequests
+    patch(aiorequests)
+except:
+    pass
+
+try:
+    from hoshino.modules.autopcr.autopcr.util import aiorequests
+    patch(aiorequests)
 except:
     pass
